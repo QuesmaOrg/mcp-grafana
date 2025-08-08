@@ -25,6 +25,7 @@ func maybeAddTools(s *server.MCPServer, tf func(*server.MCPServer), enabledTools
 		return
 	}
 	slog.Debug("Enabling tools", "category", category)
+	slog.Info("Adding tools", "category", category)
 	tf(s)
 }
 
@@ -51,7 +52,7 @@ type grafanaConfig struct {
 }
 
 func (dt *disabledTools) addFlags() {
-	flag.StringVar(&dt.enabledTools, "enabled-tools", "search,datasource,incident,prometheus,loki,alerting,dashboard,oncall,asserts,sift,admin,pyroscope,navigation", "A comma separated list of tools enabled for this server. Can be overwritten entirely or by disabling specific components, e.g. --disable-search.")
+	flag.StringVar(&dt.enabledTools, "enabled-tools", "search,datasource,incident,prometheus,loki,alerting,dashboard,oncall,asserts,sift,admin,pyroscope,navigation,style-transfer", "A comma separated list of tools enabled for this server. Can be overwritten entirely or by disabling specific components, e.g. --disable-search.")
 
 	flag.BoolVar(&dt.search, "disable-search", false, "Disable search tools")
 	flag.BoolVar(&dt.datasource, "disable-datasource", false, "Disable datasource tools")
@@ -93,6 +94,7 @@ func (dt *disabledTools) addTools(s *server.MCPServer) {
 	maybeAddTools(s, tools.AddAdminTools, enabledTools, dt.admin, "admin")
 	maybeAddTools(s, tools.AddPyroscopeTools, enabledTools, dt.pyroscope, "pyroscope")
 	maybeAddTools(s, tools.AddNavigationTools, enabledTools, dt.navigation, "navigation")
+	maybeAddTools(s, tools.AddStyleTransfer, enabledTools, dt.dashboard, "style-transfer")
 }
 
 func newServer(dt disabledTools) *server.MCPServer {
