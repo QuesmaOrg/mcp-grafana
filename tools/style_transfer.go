@@ -20,20 +20,22 @@ import (
 	"time"
 )
 
+// TODO review the prompts and the tool descriptions
+
 var GrafanaLibraryExtractDetails = mcpgrafana.MustTool(
 	"style_transfer_extract",
 	"Extract information from a dashboard. Let's call it a template dashboard. Extracted information is a JSON object with the dashboard title and panels.  Dashboards comes from the Grafana library  https://grafana.com/grafana/dashboards/. ",
-	grafanaLibraryExtractDetails,
+	styleTransferExtract,
 	mcp.WithTitleAnnotation("Extract Dashboard Details"),
 	mcp.WithIdempotentHintAnnotation(true),
 	mcp.WithReadOnlyHintAnnotation(true),
 )
 
-type GrafanaLibraryExtractDetailsParams struct {
+type StyleTransferExtractDetailsParams struct {
 	URL string `json:"url" jsonschema:"description=URL of the dashboard to extract information from.  Dashboards comes from the Grafana library  https://grafana.com/grafana/dashboards/."`
 }
 
-func grafanaLibraryExtractDetails(ctx context.Context, args GrafanaLibraryExtractDetailsParams) (string, error) {
+func styleTransferExtract(ctx context.Context, args StyleTransferExtractDetailsParams) (string, error) {
 
 	dashboardId := args.URL
 
@@ -52,21 +54,21 @@ func grafanaLibraryExtractDetails(ctx context.Context, args GrafanaLibraryExtrac
 	return string(content), nil
 }
 
-var GrafanaLibraryApplyDetails = mcpgrafana.MustTool(
+var StyleTransferApplyDetails = mcpgrafana.MustTool(
 	"style_transfer_apply",
 	"Create a new instance of a dashboard basing on the information extracted from the template dashboard and the information provided. The dashboard_info is the output of the extract_dashboard_info tool. It is a JSON object with the dashboard title and panels. It returns the URL of the new dashboard.",
-	grafanaLibraryApplyDetails,
+	styleTransferApply,
 	mcp.WithTitleAnnotation("Apply details  and create a new dashboard"),
 	mcp.WithIdempotentHintAnnotation(true),
 	mcp.WithReadOnlyHintAnnotation(true),
 )
 
-type GrafanaLibraryApplyDetailsParams struct {
+type StyleTransferApplyDetailsParams struct {
 	URL    string `json:"url" jsonschema:"description=URL of the dashboard that information was extracted from. This is the same URL used in extract function Grafana library  https://grafana.com/grafana/dashboards/."`
 	Detail string `json:"detail" jsonschema:"description=Information about the dashboard to create an instance of. This is the output of the transfer_style_tool tool. It is a JSON object with the dashboard title and panels."`
 }
 
-func grafanaLibraryApplyDetails(ctx context.Context, args GrafanaLibraryApplyDetailsParams) (string, error) {
+func styleTransferApply(ctx context.Context, args StyleTransferApplyDetailsParams) (string, error) {
 
 	dashboardId := args.URL
 	if dashboardId == "" {
@@ -107,6 +109,22 @@ func grafanaLibraryApplyDetails(ctx context.Context, args GrafanaLibraryApplyDet
 
 	return dashboardUrl, nil
 }
+
+// this one is called by the main package to register the tools
+
+func AddStyleTransfer(mcp *server.MCPServer) {
+	log.Println("Adding style transfer tools")
+	GrafanaLibraryExtractDetails.Register(mcp)
+	StyleTransferApplyDetails.Register(mcp)
+}
+
+// -- end of the tool definitions, and API wrapper
+// -- implementation starts here
+
+// Dashboard representation is based on the Grafana JSON model
+
+// TODO add more details to that representation
+// or replace with map[string]any
 
 type Dashboard struct {
 	Title       string      `json:"title"`
@@ -285,6 +303,19 @@ func parseDashboard(content string) (*Dashboard, error) {
 	return &dashboard, nil
 }
 
+func (d *Dashboard) serialize() ([]byte, error) {
+	return json.MarshalIndent(d, "", "  ")
+}
+
+func (d *Dashboard) printStats() {
+	fmt.Printf("📊 Dashboard: %s (Panels: %d)\n", d.Title, len(d.Panels))
+	for _, p := range d.Panels {
+		fmt.Printf("  • Panel %d: %s [%s] \n", p.ID, p.Title, p.Type)
+	}
+}
+
+// Dashboard Library fetcher
+
 type DashboardRepoResponse struct {
 	ID          int            `json:"id"`
 	Name        string         `json:"name"`
@@ -365,16 +396,8 @@ func findDashboard(url string) (*Dashboard, error) {
 	return dashboard, nil
 }
 
-func (d *Dashboard) serialize() ([]byte, error) {
-	return json.MarshalIndent(d, "", "  ")
-}
-
-func (d *Dashboard) printStats() {
-	fmt.Printf("📊 Dashboard: %s (Panels: %d)\n", d.Title, len(d.Panels))
-	for _, p := range d.Panels {
-		fmt.Printf("  • Panel %d: %s [%s] \n", p.ID, p.Title, p.Type)
-	}
-}
+// DashboardInfo is a simplified representation of a Grafana dashboard
+// It contains only the essential information needed for style transfer.
 
 type DashboardInfo struct {
 	Title  string      `json:"title,omitempty"`
@@ -537,6 +560,9 @@ func (d *Dashboard) applyDashboardInfo(dashboardInfo *DashboardInfo) {
 	}
 }
 
+// createDashboard creates a new dashboard in Grafana using the provided JSON string
+// TODO replace with a proper SDK call
+
 func createDashboard(dashboardJSON string) (string, error) {
 
 	grafanaBaseURL := os.Getenv("GRAFANA_URL")
@@ -637,10 +663,4 @@ func createDashboard(dashboardJSON string) (string, error) {
 	}
 
 	return grafanaBaseURL + result.URL, nil
-}
-
-func AddStyleTransfer(mcp *server.MCPServer) {
-	log.Println("Adding style transfer tools")
-	GrafanaLibraryExtractDetails.Register(mcp)
-	GrafanaLibraryApplyDetails.Register(mcp)
 }
